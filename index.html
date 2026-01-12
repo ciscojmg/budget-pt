@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creador de Presupuestos Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .canvas-container { width: 450px; background: white; position: relative; overflow: hidden; }
+        @media (max-width: 500px) {
+            .canvas-container { width: 100%; }
+        }
+        
+        /* Marca de agua */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 4rem;
+            font-weight: 900;
+            color: rgba(37, 99, 235, 0.05); /* Color azul muy tenue */
+            white-space: nowrap;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5rem;
+            z-index: 0;
+        }
+
+        /* Estilo para el mensaje de éxito */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            bottom: 30px;
+        }
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-10">
+
+    <div id="toast">✅ Imagen copiada al portapapeles</div>
+
+    <div class="max-w-4xl mx-auto px-4 pt-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-slate-800">Generador de Presupuestos</h1>
+            <p class="text-slate-500">Crea imágenes profesionales para tus clientes</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- PANEL DE CONTROL -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span>⚙️</span> Configuración
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Cliente</label>
+                        <input type="text" id="clientName" oninput="updateCanvas()" placeholder="Ej. Juan Pérez" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-12 gap-2 items-end">
+                        <div class="col-span-3">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Cant.</label>
+                            <input type="number" id="itemQty" value="1" min="1" class="w-full p-2 border border-slate-300 rounded-lg outline-none">
+                        </div>
+                        <div class="col-span-6">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Producto</label>
+                            <input type="text" id="itemName" placeholder="Nombre..." class="w-full p-2 border border-slate-300 rounded-lg outline-none">
+                        </div>
+                        <div class="col-span-3">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Precio</label>
+                            <input type="number" id="itemPrice" placeholder="0.00" class="w-full p-2 border border-slate-300 rounded-lg outline-none">
+                        </div>
+                    </div>
+
+                    <button onclick="addItem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors">
+                        + Agregar Producto
+                    </button>
+
+                    <div class="pt-4 border-t border-slate-100">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Costo de Envío / Delivery</label>
+                        <input type="number" id="shippingCost" oninput="updateCanvas()" placeholder="0.00" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div class="pt-4">
+                        <button onclick="resetApp()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-2 rounded-lg transition-colors">
+                            Limpiar Todo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA DEL CANVAS (PRESUPUESTO) -->
+            <div class="flex flex-col items-center">
+                <div id="captureArea" class="canvas-container shadow-2xl rounded-sm bg-white">
+                    <!-- Marca de Agua -->
+                    <div class="watermark">OFICIAL</div>
+                    
+                    <div class="p-8 relative z-10">
+                        <div class="flex justify-between items-start mb-8">
+                            <div>
+                                <h3 class="text-2xl font-bold text-blue-600 tracking-tight">PRESUPUESTO</h3>
+                                <p class="text-xs text-slate-400 uppercase tracking-widest mt-1" id="displayDate"></p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Tienda Oficial</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-[10px] text-slate-400 uppercase font-bold">Cliente</p>
+                            <p class="text-lg font-semibold text-slate-800" id="displayClient">Público General</p>
+                        </div>
+
+                        <table class="w-full text-left mb-8">
+                            <thead>
+                                <tr class="border-b-2 border-slate-100">
+                                    <th class="py-2 text-[10px] uppercase text-slate-400 font-bold w-12">Cant.</th>
+                                    <th class="py-2 text-[10px] uppercase text-slate-400 font-bold">Descripción</th>
+                                    <th class="py-2 text-[10px] uppercase text-slate-400 font-bold text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="displayItems">
+                            </tbody>
+                        </table>
+
+                        <div class="space-y-2 border-t border-slate-100 pt-4">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-500">Subtotal</span>
+                                <span class="font-medium text-slate-700" id="displaySubtotal">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-slate-500">Envío</span>
+                                <span class="font-medium text-slate-700" id="displayShipping">$0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                                <span class="text-lg font-bold text-slate-800">TOTAL</span>
+                                <span class="text-2xl font-black text-blue-600" id="displayTotal">$0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-10 text-center border-t border-dashed border-slate-200 pt-6">
+                            <p class="text-[10px] text-slate-400 italic">¡Gracias por tu preferencia! Este presupuesto tiene una validez de 48 horas.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full max-w-[450px] space-y-3 mt-8">
+                    <button onclick="copyToClipboard()" class="flex items-center justify-center gap-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-95">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                        COPIAR IMAGEN AL PORTAPAPELES
+                    </button>
+                    <p class="text-center text-xs text-slate-400">Una vez copiada, pégala (Ctrl+V) en WhatsApp u otra aplicación.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let items = [];
+        const displayDate = document.getElementById('displayDate');
+        displayDate.innerText = new Date().toLocaleDateString('es-ES', { 
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+        });
+
+        function showToast() {
+            const toast = document.getElementById("toast");
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        function updateCanvas() {
+            const client = document.getElementById('clientName').value;
+            const shipping = parseFloat(document.getElementById('shippingCost').value) || 0;
+            document.getElementById('displayClient').innerText = client || "Público General";
+            document.getElementById('displayShipping').innerText = `$${shipping.toFixed(2)}`;
+            renderItems();
+        }
+
+        function addItem() {
+            const name = document.getElementById('itemName').value;
+            const qty = parseInt(document.getElementById('itemQty').value);
+            const price = parseFloat(document.getElementById('itemPrice').value);
+            if (!name || isNaN(qty) || isNaN(price)) return;
+            items.push({ name, qty, price });
+            document.getElementById('itemName').value = "";
+            document.getElementById('itemQty').value = "1";
+            document.getElementById('itemPrice').value = "";
+            updateCanvas();
+        }
+
+        function renderItems() {
+            const container = document.getElementById('displayItems');
+            container.innerHTML = "";
+            let subtotal = 0;
+            items.forEach((item) => {
+                const itemTotal = item.qty * item.price;
+                subtotal += itemTotal;
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-50";
+                tr.innerHTML = `<td class="py-3 text-sm font-medium text-slate-600">${item.qty}</td><td class="py-3 text-sm text-slate-700 font-medium">${item.name}</td><td class="py-3 text-sm text-slate-800 font-bold text-right">$${itemTotal.toFixed(2)}</td>`;
+                container.appendChild(tr);
+            });
+            const shipping = parseFloat(document.getElementById('shippingCost').value) || 0;
+            document.getElementById('displaySubtotal').innerText = `$${subtotal.toFixed(2)}`;
+            document.getElementById('displayTotal').innerText = `$${(subtotal + shipping).toFixed(2)}`;
+        }
+
+        function resetApp() {
+            items = [];
+            document.getElementById('clientName').value = "";
+            document.getElementById('shippingCost').value = "";
+            updateCanvas();
+        }
+
+        async function copyToClipboard() {
+            const captureArea = document.getElementById('captureArea');
+            try {
+                const canvas = await html2canvas(captureArea, { 
+                    scale: 2, 
+                    backgroundColor: "#ffffff",
+                    useCORS: true
+                });
+                
+                canvas.toBlob(async (blob) => {
+                    try {
+                        const data = [new ClipboardItem({ [blob.type]: blob })];
+                        await navigator.clipboard.write(data);
+                        showToast();
+                    } catch (err) {
+                        const img = document.createElement('img');
+                        img.src = canvas.toDataURL();
+                        document.body.appendChild(img);
+                        const range = document.createRange();
+                        range.selectNode(img);
+                        window.getSelection().removeAllRanges();
+                        window.getSelection().addRange(range);
+                        document.execCommand('copy');
+                        window.getSelection().removeAllRanges();
+                        document.body.removeChild(img);
+                        showToast();
+                    }
+                }, 'image/png');
+            } catch (err) {
+                console.error("Error al copiar:", err);
+            }
+        }
+    </script>
+</body>
+</html>
