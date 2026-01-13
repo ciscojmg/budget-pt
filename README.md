@@ -75,3 +75,5 @@ Creado por [ciscojmg](https://github.com/ciscojmg)
 ---
 
 ¡Gracias por usar el Generador de Presupuestos! Si te gusta, dale una ⭐ al repositorio.
+
+*Última actualización: Enero 2026*
